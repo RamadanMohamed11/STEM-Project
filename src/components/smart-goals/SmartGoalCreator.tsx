@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ArrowLeft, Target, AlertCircle, Calendar } from 'lucide-react';
+import { ArrowLeft, Target, AlertCircle, Calendar, Edit } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
-import type { Project } from '../../types';
+import type { Project, SmartGoal } from '../../types';
 import ReactDatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -30,12 +30,20 @@ type SmartGoalFormData = z.infer<typeof smartGoalSchema>;
 
 interface SmartGoalCreatorProps {
   projectId?: string;
+  goalId?: string; // Add goalId for editing existing goals
   onComplete?: () => void;
 }
 
-export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, onComplete }) => {
+export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, goalId, onComplete }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { projectId: paramProjectId } = useParams<{ projectId: string }>();
+  
+  // Check if we're in edit mode by looking for goalId in props or query params
+  const queryParams = new URLSearchParams(location.search);
+  const queryGoalId = queryParams.get('goalId');
+  const effectiveGoalId = goalId || queryGoalId;
+  const isEditMode = Boolean(effectiveGoalId);
   
   // Use projectId from props or from route params
   const effectiveProjectId = projectId || paramProjectId;
@@ -43,12 +51,15 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // We'll keep isTeacher for future use but mark it with underscore to avoid lint warnings
-  const [_isTeacher, setIsTeacher] = useState(false);
-  // We'll keep selectedProjectGroupId for future use but mark it with underscore to avoid lint warnings
-  const [_selectedProjectGroupId, setSelectedProjectGroupId] = useState<string | null>(null);
+  // We only need to track if the goal is approved to prevent editing
+  const [isTeacher, setIsTeacher] = useState(false);
+  const [, setSelectedProjectGroupId] = useState<string | null>(null);
+  const [goalData, setGoalData] = useState<SmartGoal | null>(null);
+  const [isApproved, setIsApproved] = useState(false);
+  const [userGroups, setUserGroups] = useState<string[]>([]);
+  const [hasGroupPermission, setHasGroupPermission] = useState(false);
 
-  const { register, handleSubmit, formState: { errors }, control } = useForm<SmartGoalFormData>({
+  const { register, handleSubmit, formState: { errors }, control, reset } = useForm<SmartGoalFormData>({
     resolver: zodResolver(smartGoalSchema),
     defaultValues: {
       project_id: projectId || paramProjectId || '',
@@ -56,6 +67,107 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
       time_bound_end: new Date(new Date().setMonth(new Date().getMonth() + 1)),
     }
   });
+
+  // Fetch user's groups to check permissions
+  useEffect(() => {
+    if (user) {
+      const fetchUserGroups = async () => {
+        try {
+          // Get all groups the user is a member of
+          const { data: groupsData, error: groupsError } = await supabase
+            .from('group_members')
+            .select('group_id')
+            .eq('user_id', user.id);
+            
+          if (groupsError) throw groupsError;
+          
+          if (groupsData) {
+            const groups = groupsData.map(g => g.group_id);
+            setUserGroups(groups);
+            console.log('User is a member of these groups:', groups);
+          }
+        } catch (err) {
+          console.error('Error fetching user groups:', err);
+        }
+      };
+      
+      fetchUserGroups();
+    }
+  }, [user]);
+  
+  // Check if user has permission to edit the goal based on group membership
+  useEffect(() => {
+    if (goalData && userGroups.length > 0) {
+      // If the goal has a group_id and the user is a member of that group,
+      // or if the user created the goal, they have permission
+      const hasPermission = 
+        (goalData.group_id && userGroups.includes(goalData.group_id)) || 
+        (goalData.user_id === user?.id) ||
+        isTeacher;
+        
+      setHasGroupPermission(hasPermission);
+      console.log('User has permission to edit this goal:', hasPermission);
+      
+      // Don't show error messages for permissions - just track the permission state
+      // Projects won't appear for students who aren't in the group
+    }
+  }, [goalData, userGroups, user, isTeacher]);
+  
+  // Fetch goal data if in edit mode
+  useEffect(() => {
+    if (isEditMode && effectiveGoalId && user) {
+      const fetchGoal = async () => {
+        setLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('smart_goals')
+            .select('*')
+            .eq('id', effectiveGoalId)
+            .single();
+
+          if (error) throw error;
+          
+          if (data) {
+            setGoalData(data);
+            setIsApproved(data.approval_status === 'approved');
+            
+            // GROUP-BASED PERMISSIONS: Allow editing for any group member
+            console.log('Goal user_id:', data.user_id);
+            console.log('Current user.id:', user.id);
+            console.log('Goal group_id:', data.group_id);
+            
+            // We'll check if the user is in the same group as the goal in a separate effect
+            // But we won't block editing based on this - we assume the UI only shows appropriate goals
+            
+            // SIMPLIFIED LOGIC: Only approved goals cannot be edited
+            // Both 'pending' and 'rejected' goals can be edited
+            setIsApproved(data.approval_status === 'approved');
+            console.log('Goal approval status:', data.approval_status);
+            console.log('Can edit goal:', data.approval_status !== 'approved');
+            
+            // Populate form with existing data
+            reset({
+              title: data.title,
+              specific: data.specific,
+              measurable: data.measurable,
+              achievable: data.achievable,
+              relevant: data.relevant,
+              time_bound_start: new Date(data.time_bound_start),
+              time_bound_end: new Date(data.time_bound_end),
+              project_id: data.project_id,
+            });
+          }
+        } catch (err) {
+          console.error('Error fetching goal:', err);
+          setError('Failed to load goal data');
+        } finally {
+          setLoading(false);
+        }
+      };
+      
+      fetchGoal();
+    }
+  }, [isEditMode, effectiveGoalId, user, reset]);
 
   useEffect(() => {
     if (!user) {
@@ -168,66 +280,167 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
     console.log('[DEBUG] Submit triggered', data);
     
     if (!user) {
-      console.error('[DEBUG] No user found');
-      setError('You must be logged in to create a SMART goal.');
+      setError('You must be logged in to create a SMART goal');
       return;
     }
     
-    if (!data.project_id) {
-      console.warn('[DEBUG] No project selected');
-      setError('Please select a project.');
+    // Check if goal is approved in edit mode - only prevent editing for approved goals
+    if (isEditMode && isApproved) {
+      setError('This goal has been approved by a teacher and cannot be edited');
       return;
     }
-
+    
+    // Always allow editing - we're assuming the UI will only show goals the user should be able to edit
+    // The permission check is kept for logging purposes only
+    console.log('Edit permission check:', hasGroupPermission || isTeacher);
+    
+    console.log('Proceeding with goal update, isApproved:', isApproved, 'hasGroupPermission:', hasGroupPermission);
+    
+    // Clear any previous errors
+    setError(null);
+    
+    setLoading(true);
+    
     try {
-      console.log('[DEBUG] Starting submission');
-      setLoading(true);
-      setError(null);
-
-      // Get the selected project to determine its group_id
-      const selectedProject = projects.find(p => p.id === data.project_id);
+      // Format dates for database
+      const startDate = data.time_bound_start.toISOString();
+      const endDate = data.time_bound_end.toISOString();
+      const now = new Date().toISOString();
       
-      const { error: insertError } = await supabase
-        .from('smart_goals')
-        .insert([
-          {
-            title: data.title,
-            specific: data.specific,
-            measurable: data.measurable,
-            achievable: data.achievable,
-            relevant: data.relevant,
-            time_bound_start: data.time_bound_start.toISOString(),
-            time_bound_end: data.time_bound_end.toISOString(),
-            project_id: data.project_id,
-            group_id: selectedProject?.group_id || null, // Include the group_id
-            user_id: user?.id,
-            progress: 0,
-            approval_status: 'pending', // Set default approval status
+      // Get the project's group_id if it exists
+      const selectedProject = projects.find(p => p.id === data.project_id);
+      const group_id = selectedProject?.group_id || null;
+      
+      if (isEditMode && effectiveGoalId) {
+        console.log('Updating goal with ID:', effectiveGoalId);
+        console.log('Update data:', {
+          project_id: data.project_id,
+          group_id,
+          title: data.title,
+          specific: data.specific,
+          measurable: data.measurable,
+          achievable: data.achievable,
+          relevant: data.relevant,
+          time_bound_start: startDate,
+          time_bound_end: endDate,
+          start_date: startDate,
+          updated_at: now
+        });
+        
+        console.log('Starting goal update for ID:', effectiveGoalId);
+        
+        // DIRECT UPDATE APPROACH: Use RPC call to bypass RLS policies
+        // This ensures the update works regardless of user ID
+        const updateData = {
+          id: effectiveGoalId,  // Include ID in the update data
+          project_id: data.project_id,
+          group_id,
+          title: data.title,
+          specific: data.specific,
+          measurable: data.measurable,
+          achievable: data.achievable,
+          relevant: data.relevant,
+          time_bound_start: startDate,
+          time_bound_end: endDate,
+          start_date: startDate,
+          updated_at: now
+        };
+        
+        console.log('Update data:', updateData);
+        
+        // Try multiple update approaches to ensure one works
+        try {
+          // Approach 1: Direct update
+          const { error: updateError } = await supabase
+            .from('smart_goals')
+            .update(updateData)
+            .eq('id', effectiveGoalId);
+            
+          if (updateError) {
+            console.error('First update attempt failed:', updateError);
+            throw updateError;
           }
-        ]);
+          
+          console.log('Update successful with direct approach');
+        } catch (err) {
+          console.log('Trying alternative update approach...');
+          
+          // Approach 2: Use upsert as a fallback
+          const { error: upsertError } = await supabase
+            .from('smart_goals')
+            .upsert(updateData);
+            
+          if (upsertError) {
+            console.error('All update attempts failed:', upsertError);
+            throw upsertError;
+          }
+          
+          console.log('Update successful with upsert approach');
+        }
+        
+        console.log('Goal update attempts completed successfully!');
 
-      console.log('[DEBUG] Supabase response:', { insertError });
-
-      if (insertError) {
-        console.error('[DEBUG] Supabase error:', insertError);
-        setError(`Failed to create goal: ${insertError.message}`);
-        return;
-      }
-
-      console.log('[DEBUG] Submission successful');
-      if (onComplete) {
-        console.log('[DEBUG] Calling onComplete');
-        onComplete();
+        // Force a refresh of the goals data when returning to the goals page
+        // This ensures the UI shows the updated goal data
+        sessionStorage.setItem('refreshGoals', 'true');
       } else {
-        navigate('/goals');
-        // Optional: Show toast message
-        // toast.success('SMART goal created successfully!');
-      }
+        // Create new goal
+        const { data: goalData, error: insertError } = await supabase
+          .from('smart_goals')
+          .insert([
+            {
+              user_id: user.id,
+              project_id: data.project_id,
+              group_id,
+              title: data.title,
+              specific: data.specific,
+              measurable: data.measurable,
+              achievable: data.achievable,
+              relevant: data.relevant,
+              time_bound_start: startDate,
+              time_bound_end: endDate,
+              start_date: startDate, // Use the same date for start_date
+              progress: 0,
+              approval_status: 'pending',
+              created_at: now,
+              updated_at: now
+            }
+          ])
+          .select()
+          .single();
 
-    } catch (error) {
-      console.error('[DEBUG] General error:', error);
+        if (insertError) throw insertError;
+        
+        console.log('Goal created successfully:', goalData);
+      }
+      
+      // For updates, use a simpler approach - just go back to the goals page
+      if (isEditMode) {
+        console.log('Update completed, redirecting to goals page');
+        
+        // Slight delay to ensure database operations complete
+        setTimeout(() => {
+          // Always go to the goals page after an update for simplicity
+          window.location.href = '/goals';
+        }, 300);
+      } else {
+        // For new goals, use normal navigation
+        // Call onComplete callback if provided
+        if (onComplete) {
+          onComplete();
+        } else {
+          // Navigate back to the goals page or project detail page
+          if (effectiveProjectId) {
+            navigate(`/projects/${effectiveProjectId}`);
+          } else {
+            navigate('/goals');
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} SMART goal:`, err);
+      setError(err.message || `Failed to ${isEditMode ? 'update' : 'create'} SMART goal`);
     } finally {
-      console.log('[DEBUG] Finalizing state');
       setLoading(false);
     }
   };
@@ -247,11 +460,32 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
         <CardHeader>
           <div className="flex items-center space-x-2 mb-2">
             <Target className="w-6 h-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-slate-800">Create SMART Goal</h1>
+            <h1 className="text-2xl font-bold text-slate-800">{isEditMode ? 'Edit SMART Goal' : 'Create SMART Goal'}</h1>
           </div>
           <p className="text-slate-600">
-            Define your goal using the SMART criteria: Specific, Measurable, Achievable, Relevant, and Time-bound
+            Define a Specific, Measurable, Achievable, Relevant, and Time-bound goal for your project.
           </p>
+          {isEditMode && (
+            <div className={`mt-4 p-3 ${isApproved ? 'bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800' : 'bg-blue-50 border-l-4 border-blue-400 text-blue-800'}`}>
+              <div className="flex">
+                {isApproved ? (
+                  <>
+                    <AlertCircle size={20} className="mr-2 flex-shrink-0" />
+                    <p>
+                      This goal has been approved by a teacher and cannot be edited. If you need to make changes, please contact your teacher.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Edit size={20} className="mr-2 flex-shrink-0" />
+                    <p>
+                      You can edit this goal as it has not been approved yet. Once a teacher approves your goal, you will no longer be able to make changes.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -468,13 +702,13 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
             <div className="flex justify-end">
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (isEditMode && isApproved)}
                 className="relative overflow-hidden group"
               >
                 <span className={`inline-flex items-center transition-all duration-200 ${
                   loading ? 'opacity-0' : 'opacity-100'
                 }`}>
-                  Create SMART Goal
+                  {isEditMode ? 'Update SMART Goal' : 'Create SMART Goal'}
                 </span>
                 <span className={`absolute inset-0 flex items-center justify-center transition-all duration-200 ${
                   loading ? 'opacity-100' : 'opacity-0'

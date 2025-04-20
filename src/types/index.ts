@@ -30,6 +30,8 @@ export interface SmartGoal {
   time_bound_start: string;
   time_bound_end: string;
   start_date: string; // Date when the goal should start
+  started_early?: boolean; // Indicates if goal was manually started before its scheduled start date
+  postponed?: boolean; // Indicates if goal was manually postponed to To Do status
   progress: number;
   approval_status?: 'pending' | 'approved' | 'rejected';
   teacher_feedback?: string;

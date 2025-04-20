@@ -16,15 +16,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    const initializeAuth = async () => {
+      try {
+        setLoading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Initial auth session check:', session ? 'Session found' : 'No session');
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error checking auth session:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event: string, session: Session | null) => {
+      console.log('Auth state changed:', _event, session ? 'Session exists' : 'No session');
       setUser(session?.user ?? null);
       setLoading(false);
     });

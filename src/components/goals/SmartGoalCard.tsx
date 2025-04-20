@@ -1,15 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardFooter } from '../ui/Card';
 import { CircularProgress } from '../ui/CircularProgress';
-import { MessageSquare, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { MessageSquare, AlertCircle, CheckCircle, XCircle, PlayCircle, Clock, Edit, Lock, Trash2, AlertTriangle } from 'lucide-react';
+import { Button } from '../ui/Button';
 import type { SmartGoal } from '../../types';
+import { supabase } from '../../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 interface SmartGoalCardProps {
   goal: SmartGoal;
   projectTitle: string;
+  showEditButton?: boolean;
+  onDelete?: (goalId: string) => void;
 }
 
-export const SmartGoalCard: React.FC<SmartGoalCardProps> = ({ goal, projectTitle }) => {
+export const SmartGoalCard: React.FC<SmartGoalCardProps> = ({ goal, projectTitle, showEditButton = true, onDelete }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const navigate = useNavigate();
   // Function to render the approval status badge
   const renderStatusBadge = () => {
     switch (goal.approval_status) {
@@ -47,6 +56,31 @@ export const SmartGoalCard: React.FC<SmartGoalCardProps> = ({ goal, projectTitle
               {renderStatusBadge()}
             </div>
             <p className="text-sm text-slate-600">{projectTitle}</p>
+            
+            {/* Goal timing status */}
+            <div className="flex items-center mt-2 text-xs">
+              {goal.achieved ? (
+                <span className="flex items-center text-green-600">
+                  <CheckCircle size={12} className="mr-1" />
+                  Completed on {new Date(goal.achieved_at || '').toLocaleDateString()}
+                </span>
+              ) : goal.started_early ? (
+                <span className="flex items-center text-purple-600">
+                  <PlayCircle size={12} className="mr-1" />
+                  Started early (scheduled for {new Date(goal.start_date).toLocaleDateString()})
+                </span>
+              ) : new Date(goal.start_date) <= new Date() ? (
+                <span className="flex items-center text-blue-600">
+                  <Clock size={12} className="mr-1" />
+                  In progress (started {new Date(goal.start_date).toLocaleDateString()})
+                </span>
+              ) : (
+                <span className="flex items-center text-slate-600">
+                  <Clock size={12} className="mr-1" />
+                  Scheduled to start {new Date(goal.start_date).toLocaleDateString()}
+                </span>
+              )}
+            </div>
           </div>
           <CircularProgress progress={goal.progress} size={40} />
         </div>
@@ -89,8 +123,98 @@ export const SmartGoalCard: React.FC<SmartGoalCardProps> = ({ goal, projectTitle
         </div>
       </CardContent>
       <CardFooter className="border-t pt-4">
-        <div className="text-xs text-slate-500">
-          Last updated: {new Date(goal.updated_at).toLocaleDateString()}
+        <div className="flex justify-between items-center w-full">
+          <div className="text-xs text-slate-500">
+            Last updated: {new Date(goal.updated_at).toLocaleDateString()}
+          </div>
+          {/* Action buttons for goals */}
+          {showEditButton && (
+            <div className="flex gap-2">
+              {/* Delete button - only show for pending or completed goals */}
+              {(goal.approval_status === 'pending' || goal.achieved) && (
+                <>
+                  {showDeleteConfirm ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-red-600 flex items-center">
+                        <AlertTriangle size={12} className="mr-1" />
+                        Confirm delete?
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        className="text-white"
+                        disabled={isDeleting}
+                        onClick={async () => {
+                          try {
+                            setIsDeleting(true);
+                            const { error } = await supabase
+                              .from('smart_goals')
+                              .delete()
+                              .eq('id', goal.id);
+                              
+                            if (error) throw error;
+                            
+                            toast.success('Goal deleted successfully');
+                            if (onDelete) onDelete(goal.id);
+                          } catch (err) {
+                            console.error('Error deleting goal:', err);
+                            toast.error('Failed to delete goal');
+                          } finally {
+                            setIsDeleting(false);
+                            setShowDeleteConfirm(false);
+                          }
+                        }}
+                      >
+                        Yes
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowDeleteConfirm(false)}
+                      >
+                        No
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-red-600 hover:bg-red-50"
+                      onClick={() => setShowDeleteConfirm(true)}
+                    >
+                      <Trash2 size={14} className="mr-1" />
+                      Delete
+                    </Button>
+                  )}
+                </>
+              )}
+              
+              {/* Edit button - only for non-approved goals */}
+              {goal.approval_status === 'approved' ? (
+                <div className="text-xs text-slate-500 italic flex items-center">
+                  <Lock size={12} className="mr-1" />
+                  Approved goals cannot be edited
+                </div>
+              ) : (
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="text-blue-600 hover:bg-blue-50 font-medium"
+                  onClick={() => {
+                    // Navigate to edit page with goal ID
+                    if (goal.project_id) {
+                      navigate(`/projects/${goal.project_id}/goals/edit?goalId=${goal.id}`);
+                    } else {
+                      navigate(`/goals/edit?goalId=${goal.id}`);
+                    }
+                  }}
+                >
+                  <Edit size={14} className="mr-1" />
+                  {goal.approval_status === 'pending' ? 'Edit' : 'Edit'}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </CardFooter>
     </Card>

@@ -32,6 +32,8 @@ export const ProjectCreator: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [groupName, setGroupName] = useState<string>('');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Extract group_id from URL query parameters
   const queryParams = new URLSearchParams(location.search);
@@ -58,11 +60,34 @@ export const ProjectCreator: React.FC = () => {
     categories: (value: string[]) => value.length > 0 ? '' : 'Please select at least one category'
   } as const;
 
-  // Redirect if not authenticated
+  // Fetch user role and redirect if not authenticated or not a student
   React.useEffect(() => {
     if (!user) {
       navigate('/login');
+      return;
     }
+
+    const fetchUserRole = async () => {
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+        
+        setUserRole(data?.role || null);
+      } catch (err) {
+        console.error('Error fetching user role:', err);
+        setError('Failed to verify user permissions');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserRole();
   }, [user, navigate]);
   
   // Fetch group name if group_id is provided
@@ -145,6 +170,11 @@ export const ProjectCreator: React.FC = () => {
       setError('You must be logged in to create a project');
       return;
     }
+    
+    if (userRole !== 'student') {
+      setError('Only students can create projects');
+      return;
+    }
 
     if (!validateForm()) {
       return;
@@ -214,14 +244,36 @@ export const ProjectCreator: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg transition-all duration-300">
       <h2 className="text-2xl font-bold text-gray-800 mb-2">Create New Project</h2>
-      {groupName && (
-        <p className="text-gray-600 mb-6">Creating project for group: <span className="font-semibold">{groupName}</span></p>
-      )}
-      {!groupId && (
-        <p className="text-gray-600 mb-6">Creating a personal project</p>
-      )}
       
-      <form onSubmit={handleSubmit} className="space-y-6">
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        </div>
+      ) : userRole !== 'student' ? (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                Only students can create projects. Please contact your teacher or administrator if you need assistance.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {groupName && (
+            <p className="text-gray-600 mb-6">Creating project for group: <span className="font-semibold">{groupName}</span></p>
+          )}
+          {!groupId && (
+            <p className="text-gray-600 mb-6">Creating a personal project</p>
+          )}
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4 transition-all duration-300">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -296,6 +348,8 @@ export const ProjectCreator: React.FC = () => {
           {isSubmitting ? 'Creating Project...' : 'Create Project'}
         </button>
       </form>
+      </>
+      )}
     </div>
   );
 };

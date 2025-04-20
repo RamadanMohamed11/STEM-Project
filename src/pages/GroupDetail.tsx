@@ -166,7 +166,7 @@ export const GroupDetail: React.FC = () => {
               </div>
             </div>
             <div className="flex space-x-2 mt-4">
-              {isTeacher && (
+              {!isTeacher && (
                 <Button
                   variant="outline"
                   leftIcon={<FolderPlus size={16} />}
@@ -251,7 +251,7 @@ export const GroupDetail: React.FC = () => {
       <section className="mb-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-slate-800">Group Projects</h2>
-          {isTeacher && (
+          {!isTeacher && (
             <Button 
               variant="outline" 
               onClick={() => navigate(`/projects/new?group=${id}`)}
@@ -288,7 +288,7 @@ export const GroupDetail: React.FC = () => {
               </div>
               <h3 className="text-lg font-medium text-slate-800 mb-2">No projects yet</h3>
               <p className="text-slate-500 mb-4">Create a project for this group to get started.</p>
-              {isTeacher && (
+              {!isTeacher && (
                 <Button 
                   onClick={() => navigate(`/projects/new?group=${id}`)}
                   leftIcon={<PlusCircle size={16} />}

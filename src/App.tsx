@@ -35,7 +35,9 @@ function App() {
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/goals/new" element={<SmartGoalCreator />} />
+            <Route path="/goals/edit" element={<SmartGoalCreator />} />
             <Route path="/projects/:projectId/goals/new" element={<SmartGoalCreator />} />
+            <Route path="/projects/:projectId/goals/edit" element={<SmartGoalCreator />} />
             <Route path="/groups/:id" element={<GroupDetail />} />
             <Route path="/groups/:id/resources" element={<GroupResources />} />
             <Route path="/teacher/goals/review" element={<TeacherGoalReviewPage />} />

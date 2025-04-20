@@ -10,20 +10,17 @@ import type { SmartGoal, Project } from '../types';
 
 export const Goals = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState<SmartGoal[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProject, setSelectedProject] = useState<string>('all');
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-
-    const fetchData = async () => {
+  // Function to fetch all goals and projects data
+  const fetchData = async () => {
+      if (!user) return; // Don't proceed if user is null
+      
       try {
         setLoading(true);
         
@@ -44,6 +41,7 @@ export const Goals = () => {
           .order('created_at', { ascending: false });
 
         if (goalsError) throw goalsError;
+        console.log('Goals data:', goalsData);
         setGoals(goalsData || []);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -52,8 +50,48 @@ export const Goals = () => {
       }
     };
 
-    fetchData();
-  }, [user, navigate]);
+  // Check for refresh flag when component mounts or when user changes
+  useEffect(() => {
+    // Only redirect if auth is not loading and user is null
+    if (!authLoading && !user) {
+      navigate('/login');
+      return;
+    }
+
+    // Only fetch data if user exists
+    if (user) {
+      fetchData();
+      
+      // Check if we need to refresh the goals (after an edit)
+      const needsRefresh = sessionStorage.getItem('refreshGoals');
+      if (needsRefresh === 'true') {
+        // Clear the flag and refresh the data
+        sessionStorage.removeItem('refreshGoals');
+        fetchData();
+      }
+    }
+  }, [user, navigate, authLoading]);
+  
+  // Add a listener for when the component becomes visible again (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Check if we need to refresh when the user returns to this page
+        const needsRefresh = sessionStorage.getItem('refreshGoals');
+        if (needsRefresh === 'true') {
+          // Clear the flag and refresh the data
+          sessionStorage.removeItem('refreshGoals');
+          fetchData();
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const filteredGoals = goals.filter(goal => {
     const matchesSearch = goal.title.toLowerCase().includes(searchTerm.toLowerCase());

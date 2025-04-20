@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext, ReactNode } from "react";
+import { useState, createContext, useContext, ReactNode } from "react";
 
 type TabsContextType = {
   activeTab: string;
@@ -39,7 +39,7 @@ type TabsListProps = {
 export function TabsList({ children, className = "" }: TabsListProps) {
   return (
     <div
-      className={`inline-flex h-10 items-center justify-center rounded-md bg-slate-100 p-1 text-slate-500 ${className}`}
+      className={`inline-flex h-10 items-center justify-center rounded-md p-1 ${className}`}
       role="tablist"
     >
       {children}
@@ -52,6 +52,7 @@ type TabsTriggerProps = {
   children: ReactNode;
   className?: string;
   disabled?: boolean;
+  variant?: 'red' | 'yellow' | 'green' | 'default';
 };
 
 export function TabsTrigger({
@@ -59,9 +60,22 @@ export function TabsTrigger({
   children,
   className = "",
   disabled = false,
+  variant = "default",
 }: TabsTriggerProps) {
   const { activeTab, setActiveTab } = useTabs();
   const isActive = activeTab === value;
+
+  // Determine background color based on variant
+  let variantClasses = "";
+  if (variant === "red") {
+    variantClasses = "bg-red-500 text-white hover:bg-red-600 data-[state=active]:bg-red-600";
+  } else if (variant === "yellow") {
+    variantClasses = "bg-yellow-500 text-white hover:bg-yellow-600 data-[state=active]:bg-yellow-600";
+  } else if (variant === "green") {
+    variantClasses = "bg-green-500 text-white hover:bg-green-600 data-[state=active]:bg-green-600";
+  } else {
+    variantClasses = isActive ? "bg-white text-slate-950 shadow-sm" : "";
+  }
 
   return (
     <button
@@ -70,7 +84,7 @@ export function TabsTrigger({
       data-state={isActive ? "active" : "inactive"}
       disabled={disabled}
       onClick={() => setActiveTab(value)}
-      className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${isActive ? "bg-white text-slate-950 shadow-sm" : ""} ${className}`}
+      className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${variantClasses} ${className}`}
     >
       {children}
     </button>

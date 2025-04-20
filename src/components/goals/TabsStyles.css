@@ -1,0 +1,47 @@
+/* Custom styles for tabs */
+[role="tablist"] [role="tab"][value="todo"],
+[role="tablist"] [role="tab"][data-value="todo"] {
+  background-color: #ef4444 !important; /* red-500 */
+  color: white !important;
+}
+
+[role="tablist"] [role="tab"][value="todo"]:hover,
+[role="tablist"] [role="tab"][data-value="todo"]:hover,
+[role="tablist"] [role="tab"][value="todo"][data-state="active"],
+[role="tablist"] [role="tab"][data-value="todo"][data-state="active"] {
+  background-color: #dc2626 !important; /* red-600 */
+  color: white !important;
+}
+
+[role="tablist"] [role="tab"][value="doing"],
+[role="tablist"] [role="tab"][data-value="doing"] {
+  background-color: #eab308 !important; /* yellow-500 */
+  color: white !important;
+}
+
+[role="tablist"] [role="tab"][value="doing"]:hover,
+[role="tablist"] [role="tab"][data-value="doing"]:hover,
+[role="tablist"] [role="tab"][value="doing"][data-state="active"],
+[role="tablist"] [role="tab"][data-value="doing"][data-state="active"] {
+  background-color: #ca8a04 !important; /* yellow-600 */
+  color: white !important;
+}
+
+[role="tablist"] [role="tab"][value="done"],
+[role="tablist"] [role="tab"][data-value="done"] {
+  background-color: #22c55e !important; /* green-500 */
+  color: white !important;
+}
+
+[role="tablist"] [role="tab"][value="done"]:hover,
+[role="tablist"] [role="tab"][data-value="done"]:hover,
+[role="tablist"] [role="tab"][value="done"][data-state="active"],
+[role="tablist"] [role="tab"][data-value="done"][data-state="active"] {
+  background-color: #16a34a !important; /* green-600 */
+  color: white !important;
+}
+
+/* Remove default background from tablist */
+[role="tablist"] {
+  background-color: transparent !important;
+}
