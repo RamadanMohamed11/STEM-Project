@@ -43,8 +43,10 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isTeacher, setIsTeacher] = useState(false);
-  const [selectedProjectGroupId, setSelectedProjectGroupId] = useState<string | null>(null);
+  // We'll keep isTeacher for future use but mark it with underscore to avoid lint warnings
+  const [_isTeacher, setIsTeacher] = useState(false);
+  // We'll keep selectedProjectGroupId for future use but mark it with underscore to avoid lint warnings
+  const [_selectedProjectGroupId, setSelectedProjectGroupId] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors }, control } = useForm<SmartGoalFormData>({
     resolver: zodResolver(smartGoalSchema),
@@ -62,18 +64,67 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
     }
 
     const fetchProjects = async () => {
+      console.log('Fetching projects for user ID:', user?.id);
       try {
-        const { data, error } = await supabase
+        // With RLS policies in place, we can simply fetch all projects the user has access to
+        // The RLS policies will automatically filter to show only:
+        // 1. Projects created by the user
+        // 2. Projects in groups the user is a member of
+        // 3. Projects in groups where the user is a teacher
+        
+        console.log('Fetching all accessible projects');
+        const { data: accessibleProjects, error: projectsError } = await supabase
           .from('projects')
-          .select('*')
-          .eq('user_id', user.id);
+          .select('*');
+          
+        if (projectsError) {
+          console.error('Error fetching projects:', projectsError);
+          throw projectsError;
+        }
+        
+        console.log('Accessible projects found:', accessibleProjects);
+        
+        // For debugging, let's check if the user has any groups
+        const { data: userGroups, error: groupsError } = await supabase
+          .from('group_members')
+          .select('group_id')
+          .eq('student_id', user.id);
 
-        if (error) throw error;
-        setProjects(data || []);
+        if (groupsError) {
+          console.error('Error fetching user groups:', groupsError);
+        } else {
+          console.log('User groups found:', userGroups);
+          const groupIds = userGroups?.map(group => group.group_id) || [];
+          console.log('Group IDs:', groupIds);
+        }
+        
+        // Also check if the user is a teacher for any groups
+        const { data: teacherGroups, error: teacherGroupsError } = await supabase
+          .from('groups')
+          .select('id')
+          .eq('teacher_id', user.id);
+          
+        if (teacherGroupsError) {
+          console.error('Error fetching teacher groups:', teacherGroupsError);
+        } else {
+          console.log('Teacher groups found:', teacherGroups);
+        }
+        
+        // Set projects from the accessible projects
+        let projectsData: Project[] = accessibleProjects || [];
+        
+        // Remove duplicates (in case a user's personal project is also in a group)
+        const uniqueProjects = Array.from(new Map(projectsData.map(item => [item.id, item])).values());
+        
+        // Debug: Log the projects found
+        console.log('Final unique projects:', uniqueProjects);
+        console.log('Project count:', uniqueProjects.length);
+        
+        setProjects(uniqueProjects);
         
         // If we have a project ID from props or params, set the group ID for that project
-        if (effectiveProjectId && data) {
-          const selectedProject = data.find(p => p.id === effectiveProjectId);
+        if (effectiveProjectId && uniqueProjects.length > 0) {
+          const selectedProject = uniqueProjects.find(p => p.id === effectiveProjectId);
           if (selectedProject && selectedProject.group_id) {
             setSelectedProjectGroupId(selectedProject.group_id);
           }
@@ -211,15 +262,21 @@ export const SmartGoalCreator: React.FC<SmartGoalCreatorProps> = ({ projectId, o
               </label>
               <select
                 {...register('project_id')}
-                onChange={(e) => handleProjectChange(e.target.value)}
+                onChange={(e) => {
+                  console.log('Project selected:', e.target.value);
+                  handleProjectChange(e.target.value);
+                }}
                 className={`w-full px-3 py-2 border ${
                   errors.project_id ? 'border-red-300' : 'border-slate-300'
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200`}
               >
-                <option value="">Select a project</option>
+                <option value="">Select a project ({projects.length} available)</option>
+                {projects.length === 0 && (
+                  <option value="" disabled>No projects found</option>
+                )}
                 {projects.map((project) => (
                   <option key={project.id} value={project.id}>
-                    {project.title}
+                    {project.title} {project.group_id ? '(Group Project)' : '(Personal)'}
                   </option>
                 ))}
               </select>

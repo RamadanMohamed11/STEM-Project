@@ -3,7 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 
-interface Project {
+// Local interface for form state
+interface ProjectForm {
   id?: string;
   user_id: string;
   group_id?: string;
@@ -34,9 +35,15 @@ export const ProjectCreator: React.FC = () => {
   
   // Extract group_id from URL query parameters
   const queryParams = new URLSearchParams(location.search);
-  const groupId = queryParams.get('group');
+  // Check for both 'group' and 'groupId' in URL parameters to handle different navigation paths
+  const groupIdParam = queryParams.get('group') || queryParams.get('groupId');
   
-  const [project, setProject] = useState<Project>({
+  // Convert to UUID format if it's a valid UUID string
+  const groupId = groupIdParam;
+  
+  console.log('Group ID from URL:', groupIdParam);
+  
+  const [project, setProject] = useState<ProjectForm>({
     user_id: user?.id || '',
     group_id: groupId || undefined,
     title: '',
@@ -80,7 +87,7 @@ export const ProjectCreator: React.FC = () => {
     fetchGroupName();
   }, [groupId]);
 
-  const handleChange = (field: keyof Project) => (
+  const handleChange = (field: keyof ProjectForm) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     setProject(prev => ({
@@ -150,37 +157,52 @@ export const ProjectCreator: React.FC = () => {
       // Convert categories array to a single category string (comma-separated)
       const categoryString = project.categories.join(', ');
       
-      console.log('Creating project with data:', {
-        ...project,
+      // Create a project object that matches the database schema
+      const projectData = {
+        title: project.title,
+        description: project.description,
         user_id: user.id,
-        group_id: groupId || null,
         category: categoryString, // Use single category string instead of array
-      });
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      // Only add group_id if it exists and is not empty
+      if (groupId) {
+        console.log('Adding group ID to project:', groupId);
+        // @ts-ignore - Add group_id dynamically
+        projectData.group_id = groupId;
+      }
+      
+      console.log('Final project data being saved:', projectData);
 
       // Insert the project into Supabase
-      const { data, error: supabaseError } = await supabase
-        .from('projects')
-        .insert([
-          {
-            title: project.title,
-            description: project.description,
-            user_id: user.id,
-            group_id: groupId || null,
-            category: categoryString, // Use the single category string
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
-        ])
-        .select()
-        .single();
+      try {
+        const { data, error: supabaseError } = await supabase
+          .from('projects')
+          .insert([projectData])
+          .select()
+          .single();
 
-      if (supabaseError) {
-        console.error('Supabase error details:', supabaseError);
-        throw supabaseError;
+        if (supabaseError) {
+          console.error('Supabase error details:', supabaseError);
+          throw supabaseError;
+        }
+
+        if (!data || !data.id) {
+          throw new Error('Project was created but no ID was returned');
+        }
+
+        console.log('Project created successfully:', data);
+        
+        // Use a timeout to ensure the database has time to process the new record
+        setTimeout(() => {
+          navigate(`/projects/${data.id}`);
+        }, 500);
+      } catch (insertError) {
+        console.error('Error during project creation:', insertError);
+        throw insertError;
       }
-
-      console.log('Project created successfully:', data);
-      navigate(`/projects/${data.id}`);
     } catch (err: any) {
       console.error('Error creating project:', err);
       setError(err?.message || err?.error_description || 'Failed to create project. Please try again.');

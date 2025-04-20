@@ -31,6 +31,7 @@ function App() {
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/projects/new" element={<ProjectCreator />} />
+            <Route path="/projects/create" element={<ProjectCreator />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/goals/new" element={<SmartGoalCreator />} />
