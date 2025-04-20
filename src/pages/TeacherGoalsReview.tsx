@@ -10,7 +10,7 @@ import type { SmartGoal, Project, Profile } from '../types';
 
 export const TeacherGoalsReview = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState<SmartGoal[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -20,7 +20,7 @@ export const TeacherGoalsReview = () => {
   const [selectedProject, setSelectedProject] = useState<string>('all');
 
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       navigate('/login');
       return;
     }

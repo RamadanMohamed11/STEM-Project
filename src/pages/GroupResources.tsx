@@ -10,22 +10,22 @@ import { ResourceList } from '../components/resources/ResourceList';
 export const GroupResources: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [groupName, setGroupName] = useState('');
   const [isTeacher, setIsTeacher] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
-    if (!user || !id) {
+    if (!loading && (!user || !id)) {
       navigate('/login');
       return;
     }
 
     const fetchGroupDetails = async () => {
       try {
-        setLoading(true);
+        setPageLoading(true);
         setError(null);
 
         // Fetch group details
@@ -44,7 +44,7 @@ export const GroupResources: React.FC = () => {
         console.error('Error fetching group details:', err);
         setError(err.message || 'Failed to load group details');
       } finally {
-        setLoading(false);
+        setPageLoading(false);
       }
     };
 
@@ -56,7 +56,7 @@ export const GroupResources: React.FC = () => {
     setRefreshTrigger(prev => prev + 1);
   };
 
-  if (loading) {
+  if (pageLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600" />
@@ -103,10 +103,10 @@ export const GroupResources: React.FC = () => {
           </p>
         </div>
 
-        {isTeacher && (
+        {isTeacher && user && (
           <ResourceManager 
             groupId={id || ''} 
-            teacherId={user?.id || ''} 
+            teacherId={user.id} 
             onResourceAdded={handleResourceAdded}
           />
         )}

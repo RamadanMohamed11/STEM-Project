@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, Bell, ChevronDown, User } from 'lucide-react';
+import { Menu, X, ChevronDown, User } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { useAuth } from '../../context/AuthContext';
 
@@ -70,11 +70,6 @@ export const Header = () => {
           <div className="flex items-center">
             {user ? (
               <>
-                {/* Notifications */}
-                <button className="p-2 rounded-full text-slate-600 hover:text-blue-600 hover:bg-slate-100">
-                  <Bell size={20} />
-                </button>
-
                 {/* Profile Dropdown */}
                 <div className="ml-3 relative">
                   <div>

@@ -29,7 +29,7 @@ interface GroupMember {
 export const GroupDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [group, setGroup] = useState<GroupDetails | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -39,7 +39,7 @@ export const GroupDetail: React.FC = () => {
   const [isTeacher, setIsTeacher] = useState(false);
 
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       navigate('/login');
       return;
     }
@@ -60,7 +60,9 @@ export const GroupDetail: React.FC = () => {
         setGroup(groupData);
         
         // Check if current user is the teacher of this group
-        setIsTeacher(groupData.teacher_id === user.id);
+        if (user) {
+          setIsTeacher(groupData.teacher_id === user.id);
+        }
 
         // Fetch group members with profiles
         const { data: membersData, error: membersError } = await supabase

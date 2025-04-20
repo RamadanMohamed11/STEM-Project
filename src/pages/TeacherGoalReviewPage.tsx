@@ -8,7 +8,7 @@ import { TeacherGoalReview } from '../components/goals/TeacherGoalReview';
 import type { SmartGoal, Project } from '../types';
 
 export const TeacherGoalReviewPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState<SmartGoal[]>([]);
@@ -17,7 +17,7 @@ export const TeacherGoalReviewPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       navigate('/login');
       return;
     }

@@ -10,19 +10,20 @@ import type { Project } from '../types';
 
 export const Projects = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
 
   useEffect(() => {
-    if (!user) {
+    if (!authLoading && !user) {
       navigate('/login');
       return;
     }
 
     const fetchProjects = async () => {
+      if (!user) return;
       try {
         setLoading(true);
         const { data, error } = await supabase

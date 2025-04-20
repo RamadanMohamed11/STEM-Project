@@ -18,10 +18,10 @@ export const Dashboard: React.FC = () => {
 
   // Redirect if not authenticated
   React.useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       navigate('/login');
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   // Check user role
   useEffect(() => {

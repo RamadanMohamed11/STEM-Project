@@ -29,7 +29,7 @@ export const Profile = () => {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       navigate('/login');
       return;
     }

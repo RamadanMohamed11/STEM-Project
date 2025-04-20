@@ -52,11 +52,12 @@ export const Goals = () => {
 
   // Check for refresh flag when component mounts or when user changes
   useEffect(() => {
-    // Only redirect if auth is not loading and user is null
-    if (!authLoading && !user) {
-      navigate('/login');
-      return;
-    }
+    useEffect(() => {
+      if (!authLoading && !user) {
+        navigate('/login');
+        return;
+      }
+    }, [authLoading, user, navigate]);
 
     // Only fetch data if user exists
     if (user) {
